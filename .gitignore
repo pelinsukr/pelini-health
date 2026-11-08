@@ -1,0 +1,17 @@
+# API anahtarları
+.env
+
+# Python sanal ortamı
+.venv/
+venv/
+
+# Python geçici dosyaları
+__pycache__/
+*.pyc
+
+# Veritabanı
+*.db
+
+# Sistem dosyaları
+.DS_Store
+Thumbs.db

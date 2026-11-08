@@ -1,0 +1,233 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PelinI | Health Assistant</title>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+font-family:'Segoe UI',sans-serif;
+background:#fff7f9;color:#40343a;
+min-height:100vh;padding:25px;
+}
+.container{max-width:1050px;margin:auto}
+header{
+display:flex;justify-content:space-between;align-items:center;
+padding:20px 0;border-bottom:1px solid #efdce3;margin-bottom:28px
+}
+.logo{font-size:27px;font-weight:700;color:#b77e94}
+.logo span{display:block;font-size:10px;letter-spacing:2px;color:#9b8490}
+h2{font-size:23px;margin-bottom:8px}
+.subtitle{color:#99858e;margin-bottom:25px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.card{
+background:white;border:1px solid #f0dfe5;border-radius:20px;
+padding:24px;box-shadow:0 5px 20px #d9b5c015
+}
+.card h3{margin-bottom:18px;color:#765565}
+input,textarea{
+width:100%;padding:13px;border:1px solid #ead5de;
+border-radius:12px;margin:8px 0 14px;font:inherit;
+background:#fffafb;color:#40343a
+}
+textarea{min-height:85px;resize:vertical}
+button{
+border:0;border-radius:12px;padding:13px 19px;
+background:#d8a6b8;color:white;font-weight:600;
+cursor:pointer
+}
+button:hover{background:#bd879c}
+button:disabled{opacity:.6;cursor:wait}
+.upload{display:block;border:1px dashed #d8a6b8;
+border-radius:12px;padding:18px;text-align:center;
+color:#987184;margin-bottom:15px;cursor:pointer}
+.upload input{display:none}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:#f8edf1;padding:15px;border-radius:13px}
+.stat small{color:#927b86;display:block;margin-bottom:7px}
+.stat strong{font-size:20px;color:#765565}
+.result{white-space:pre-wrap;line-height:1.7;margin-top:18px}
+.meals{margin-top:20px}
+.meal{padding:12px 0;border-bottom:1px solid #f1e5e9}
+.chat{margin-top:20px}
+.chat-messages{max-height:250px;overflow:auto;margin:15px 0}
+.message{padding:12px 15px;border-radius:13px;
+margin:9px 0;white-space:pre-wrap;line-height:1.5}
+.user{background:#f8e8ee;margin-left:15%}
+.bot{background:#f1edf3;margin-right:15%}
+@media(max-width:700px){
+body{padding:15px}.grid{grid-template-columns:1fr}
+.stats{grid-template-columns:1fr 1fr 1fr}
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<header>
+<div class="logo">PelinI
+<span>PERSONAL HEALTH ASSISTANT</span>
+</div>
+<div>Beslenme ve sağlık takibi</div>
+</header>
+
+<h2>Günlük beslenmen</h2>
+<p class="subtitle">Öğünlerini kaydet, besin değerlerini takip et.</p>
+
+<div class="grid">
+
+<section class="card">
+<h3>Öğün analizi</h3>
+
+<label>Ne yedin?</label>
+<textarea id="yemek" placeholder="Örn: 1 muz, 50 gram granola, 4 kaşık yoğurt"></textarea>
+
+<label class="upload">
+Fotoğraf yükle
+<input type="file" id="fotograf" accept="image/*">
+<span id="dosyaAdi">Bir yemek fotoğrafı seç</span>
+</label>
+
+<button id="analizBtn" onclick="yemekAnaliz()">Öğünümü analiz et</button>
+
+<div id="sonuc" class="result"></div>
+</section>
+
+<section class="card">
+<h3>Günlük özet</h3>
+<div class="stats">
+<div class="stat"><small>Kalori</small><strong id="kalori">0</strong><small>kcal</small></div>
+<div class="stat"><small>Protein</small><strong id="protein">0</strong><small>gram</small></div>
+<div class="stat"><small>Karbonhidrat</small><strong id="karbonhidrat">0</strong><small>gram</small></div>
+</div>
+<div class="meals">
+<h3 style="margin-top:22px">Öğün geçmişi</h3>
+<div id="ogunler">Henüz öğün eklenmedi.</div>
+</div>
+</section>
+
+</div>
+
+<section class="card chat">
+<h3>PelinI ile sohbet</h3>
+<div class="chat-messages" id="chat"></div>
+<input id="chatInput" placeholder="PelinI'ye bir şey sor...">
+<button onclick="sohbetGonder()">Gönder</button>
+</section>
+
+</div>
+
+<script>
+let toplamKalori=0;
+let toplamProtein=0;
+let toplamKarbonhidrat=0;
+
+const fotografInput=document.getElementById("fotograf");
+
+fotografInput.addEventListener("change",()=>{
+const file=fotografInput.files[0];
+document.getElementById("dosyaAdi").textContent=
+file ? file.name : "Bir yemek fotoğrafı seç";
+});
+
+async function yemekAnaliz(){
+const mesaj=document.getElementById("yemek").value.trim();
+const file=fotografInput.files[0];
+const sonuc=document.getElementById("sonuc");
+const button=document.getElementById("analizBtn");
+
+if(!mesaj&&!file){
+alert("Lütfen yemek yaz veya fotoğraf yükle.");
+return;
+}
+
+if(file&&!file.type.startsWith("image/")){
+alert("Lütfen geçerli bir fotoğraf seç.");
+return;
+}
+
+button.disabled=true;
+sonuc.textContent="PelinI öğününü analiz ediyor...";
+
+try{
+let fotograf="";
+let mime_type="";
+
+if(file){
+if(file.size>5*1024*1024){
+throw new Error("Fotoğraf en fazla 5 MB olabilir.");
+}
+fotograf=await new Promise((resolve,reject)=>{
+const reader=new FileReader();
+reader.onload=()=>resolve(reader.result.split(",")[1]);
+reader.onerror=()=>reject(new Error("Fotoğraf okunamadı."));
+reader.readAsDataURL(file);
+});
+mime_type=file.type;
+}
+
+const response=await fetch("/yemek-analiz",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({mesaj,fotograf,mime_type})
+});
+
+const data=await response.json();
+if(!response.ok)throw new Error(data.detail||"Analiz yapılamadı.");
+
+sonuc.textContent=data.analiz;
+
+// İlk sürümde öğünler analiz metniyle saklanır.
+// Sayısal toplamlar sonraki adımda güvenilir veri formatına bağlanacak.
+const ogun=document.createElement("div");
+ogun.className="meal";
+ogun.textContent=mesaj||file.name;
+document.getElementById("ogunler").prepend(ogun);
+
+localStorage.setItem("pelini_ogunler",
+document.getElementById("ogunler").innerHTML);
+
+}catch(error){
+sonuc.textContent="Bir hata oluştu: "+error.message;
+}finally{
+button.disabled=false;
+}
+}
+
+async function sohbetGonder(){
+const input=document.getElementById("chatInput");
+const mesaj=input.value.trim();
+if(!mesaj)return;
+
+const chat=document.getElementById("chat");
+const user=document.createElement("div");
+user.className="message user";
+user.textContent=mesaj;
+chat.appendChild(user);
+input.value="";
+
+const bot=document.createElement("div");
+bot.className="message bot";
+bot.textContent="PelinI düşünüyor...";
+chat.appendChild(bot);
+
+try{
+const response=await fetch("/sor",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({mesaj})
+});
+const data=await response.json();
+if(!response.ok)throw new Error("Yanıt alınamadı.");
+bot.textContent=data.cevap;
+}catch(error){
+bot.textContent="Şu anda yanıt veremiyorum. Tekrar deneyebilirsin.";
+}
+}
+</script>
+</body>
+</html>
