@@ -1,42 +1,41 @@
-
+import base64
+import json
 import os
 import time
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
+from google.genai import errors
 
 load_dotenv()
 
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    raise ValueError("API anahtarı bulunamadı!")
+    raise ValueError("API anahtarı bulunamadı! Lütfen .env dosyasını kontrol edin.")
 
 client = genai.Client(api_key=api_key)
 
+# Yoğunluktan etkilenmeyen hızlı ve kararlı model
+MODEL_NAME = "gemini-3.5-flash-lite"
+
 
 def yapay_zeka_cevap(soru: str):
-    for deneme in range(3):
+    for deneme in range(4):
         try:
             response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
+                model=MODEL_NAME,
                 contents=soru
             )
             return response.text
-
-        except Exception as hata:
-            if "503" in str(hata) and deneme < 2:
-                time.sleep(5 * (deneme + 1))
+        except errors.ServerError as hata:
+            if deneme < 3:
+                time.sleep(3 * (deneme + 1))
             else:
                 raise hata
 
-import base64
-from google.genai import types
-
-
 
 def yemek_analiz_et(mesaj, fotograf=None, mime_type=None):
-    import json
-
     prompt = f"""
     Sen PelinI adlı profesyonel bir beslenme analiz asistanısın.
 
@@ -88,7 +87,7 @@ def yemek_analiz_et(mesaj, fotograf=None, mime_type=None):
         )
 
     response = client.models.generate_content(
-        model="gemini-3.5-flash-lite",
+        model=MODEL_NAME,
         contents=icerik,
         config=types.GenerateContentConfig(
             response_mime_type="application/json"
@@ -125,70 +124,63 @@ def yemek_analiz_et(mesaj, fotograf=None, mime_type=None):
         "notes": veri.get("notes", [])
     }
 
-def aktivite_ve_kalori_ajani(gunluk_hedef_kalori: int, alinan_kalori: int, alinan_protein: float, hedef_protein: float, kullanici_notu: str = ""):
-    """
-    Kullanıcının günlük enerji dengesini inceler, hedeflerine göre
-    durumu analiz eder ve spesifik egzersiz/aktivite önerileri üretir.
-    """
-    import json
 
+def aktivite_ve_kalori_ajani(gunluk_hedef_kalori: int, alinan_kalori: int, alinan_protein: float, hedef_protein: float, kullanici_notu: str = ""):
     fark = alinan_kalori - gunluk_hedef_kalori
     durum = "kalori_fazlasi" if fark > 0 else "kalori_acigi"
 
     prompt = f"""
-    Sen PelinI adlı bütüncül beslenme ve aktif yaşam/fitness uzmanı bir yapay zekâ ajanısın.
+Sen PelinI adlı bütüncül beslenme ve spor asistanısın.
 
-    Kullanıcının Günlük Verileri:
-    - Günlük Hedef Kalori: {gunluk_hedef_kalori} kcal
-    - Şu Ana Kadar Alınan Kalori: {alinan_kalori} kcal
-    - Kalori Dengesi: {abs(fark)} kcal {'fazla alındı' if fark > 0 else 'daha pay var (kalori açığı)'}
-    - Alınan Protein / Hedef: {alinan_protein}g / {hedef_protein}g
-    - Kullanıcının Tercihi veya Durum Notu: "{kullanici_notu}"
+Kullanıcı Özeti:
+- Hedef: {gunluk_hedef_kalori} kcal | Alınan: {alinan_kalori} kcal | Fark: {abs(fark)} kcal ({durum})
+- Protein: {alinan_protein}g / {hedef_protein}g
+- Not: {kullanici_notu}
 
-    GÖREVİN:
-    1. Günlük beslenme ve kalori dengesini profesyonelce, motive edici bir dille özetle.
-    2. Kullanıcının durumuna göre (kalori fazlası varsa bunu yakmak/dengelemek için, kalori açığı varsa yağ yakımını destekleyip kas kütlesini korumak için) 2 ila 3 adet uygulanabilir spor/aktivite seçeneği sun.
-    3. Her aktivite için tahmini süre ve yakılacak yaklaşık kaloriyi belirle.
-    4. Kalan protein ihtiyacına veya toparlanmaya (recovery) yönelik kısa bir ipucu ekle.
-
-    Yalnızca aşağıdaki şemaya uygun geçerli bir JSON çıktısı üret:
+Aşağıdaki JSON şablonunu doldur ve yalnızca bu JSON objesini döndür:
+{{
+  "ozet_yorum": "kısa durum değerlendirmesi",
+  "durum_tipi": "{durum}",
+  "onerilen_aktiviteler": [
     {{
-        "ozet_yorum": "Bugün hedefin 250 kcal üzerindesin ancak protein hedefini harika yakalamışsın...",
-        "durum_tipi": "{durum}",
-        "onerilen_aktiviteler": [
-            {{
-                "aktivite_adi": "Tempolu Açık Hava Yürüyüşü",
-                "sure_dakika": 40,
-                "tahmini_yakilan_kalori": 180,
-                "aciklama": "Akşam yemeği sonrası sindirimi kolaylaştırır ve kan şekerini dengeler."
-            }},
-            {{
-                "aktivite_adi": "Evde HIIT veya Kardiyo",
-                "sure_dakika": 20,
-                "tahmini_yakilan_kalori": 200,
-                "aciklama": "Kısa sürede etkili kalori yakımı ve metabolizma hızlandırma."
-            }}
-        ],
-        "beslenme_tavsiyesi": "Protein hedefin tamamlandığı için gece acıkırsan sade maden suyu veya bitki çayı tercih edebilirsin."
+      "aktivite_adi": "Aktivite Adı",
+      "sure_dakika": 30,
+      "tahmini_yakilan_kalori": 150,
+      "aciklama": "Neden önerildiği"
     }}
+  ],
+  "beslenme_tavsiyesi": "kısa öneri"
+}}
+"""
 
-    JSON dışında hiçbir giriş veya Markdown açıklaması yazma.
-    """
-
-    for deneme in range(3):
+    for deneme in range(4):
         try:
             response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
+                model=MODEL_NAME,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.3
+                    response_mime_type="application/json"
                 )
             )
             return json.loads(response.text)
-
-        except Exception as hata:
-            if "503" in str(hata) and deneme < 2:
-                time.sleep(3 * (deneme + 1))
+        except errors.ServerError as hata:
+            if deneme < 3:
+                bekleme = 3 * (deneme + 1)
+                print(f"Sunucu yoğun, {bekleme} saniye sonra tekrar deneniyor...")
+                time.sleep(bekleme)
             else:
                 raise hata
+
+
+if __name__ == "__main__":
+    import pprint
+    print("Ajan çağrılıyor, lütfen bekleyin...")
+    sonuc = aktivite_ve_kalori_ajani(
+        gunluk_hedef_kalori=1800,
+        alinan_kalori=2050,
+        alinan_protein=95.0,
+        hedef_protein=110.0,
+        kullanici_notu="Bugün evdeyim, ekipmansız egzersiz olsun"
+    )
+    print("\n--- AJAN YANITI ---")
+    pprint.pprint(sonuc)
