@@ -125,4 +125,70 @@ def yemek_analiz_et(mesaj, fotograf=None, mime_type=None):
         "notes": veri.get("notes", [])
     }
 
+def aktivite_ve_kalori_ajani(gunluk_hedef_kalori: int, alinan_kalori: int, alinan_protein: float, hedef_protein: float, kullanici_notu: str = ""):
+    """
+    Kullanıcının günlük enerji dengesini inceler, hedeflerine göre
+    durumu analiz eder ve spesifik egzersiz/aktivite önerileri üretir.
+    """
+    import json
 
+    fark = alinan_kalori - gunluk_hedef_kalori
+    durum = "kalori_fazlasi" if fark > 0 else "kalori_acigi"
+
+    prompt = f"""
+    Sen PelinI adlı bütüncül beslenme ve aktif yaşam/fitness uzmanı bir yapay zekâ ajanısın.
+
+    Kullanıcının Günlük Verileri:
+    - Günlük Hedef Kalori: {gunluk_hedef_kalori} kcal
+    - Şu Ana Kadar Alınan Kalori: {alinan_kalori} kcal
+    - Kalori Dengesi: {abs(fark)} kcal {'fazla alındı' if fark > 0 else 'daha pay var (kalori açığı)'}
+    - Alınan Protein / Hedef: {alinan_protein}g / {hedef_protein}g
+    - Kullanıcının Tercihi veya Durum Notu: "{kullanici_notu}"
+
+    GÖREVİN:
+    1. Günlük beslenme ve kalori dengesini profesyonelce, motive edici bir dille özetle.
+    2. Kullanıcının durumuna göre (kalori fazlası varsa bunu yakmak/dengelemek için, kalori açığı varsa yağ yakımını destekleyip kas kütlesini korumak için) 2 ila 3 adet uygulanabilir spor/aktivite seçeneği sun.
+    3. Her aktivite için tahmini süre ve yakılacak yaklaşık kaloriyi belirle.
+    4. Kalan protein ihtiyacına veya toparlanmaya (recovery) yönelik kısa bir ipucu ekle.
+
+    Yalnızca aşağıdaki şemaya uygun geçerli bir JSON çıktısı üret:
+    {{
+        "ozet_yorum": "Bugün hedefin 250 kcal üzerindesin ancak protein hedefini harika yakalamışsın...",
+        "durum_tipi": "{durum}",
+        "onerilen_aktiviteler": [
+            {{
+                "aktivite_adi": "Tempolu Açık Hava Yürüyüşü",
+                "sure_dakika": 40,
+                "tahmini_yakilan_kalori": 180,
+                "aciklama": "Akşam yemeği sonrası sindirimi kolaylaştırır ve kan şekerini dengeler."
+            }},
+            {{
+                "aktivite_adi": "Evde HIIT veya Kardiyo",
+                "sure_dakika": 20,
+                "tahmini_yakilan_kalori": 200,
+                "aciklama": "Kısa sürede etkili kalori yakımı ve metabolizma hızlandırma."
+            }}
+        ],
+        "beslenme_tavsiyesi": "Protein hedefin tamamlandığı için gece acıkırsan sade maden suyu veya bitki çayı tercih edebilirsin."
+    }}
+
+    JSON dışında hiçbir giriş veya Markdown açıklaması yazma.
+    """
+
+    for deneme in range(3):
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.3
+                )
+            )
+            return json.loads(response.text)
+
+        except Exception as hata:
+            if "503" in str(hata) and deneme < 2:
+                time.sleep(3 * (deneme + 1))
+            else:
+                raise hata
