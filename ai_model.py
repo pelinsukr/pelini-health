@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from google.genai import errors
+from ai_model import yemek_analiz_et, yapay_zeka_cevap, aktivite_ve_kalori_ajani
 
 load_dotenv()
 
@@ -184,3 +185,26 @@ if __name__ == "__main__":
     )
     print("\n--- AJAN YANITI ---")
     pprint.pprint(sonuc)
+
+from pydantic import BaseModel
+
+class AktiviteIstegi(BaseModel):
+    gunluk_hedef_kalori: int = 1800
+    alinan_kalori: int
+    alinan_protein: float
+    hedef_protein: float = 100.0
+    kullanici_notu: str = ""
+
+@app.post("/api/aktivite-onerisi")
+def aktivite_tavsiyesi_al(istek: AktiviteIstegi):
+    try:
+        sonuc = aktivite_ve_kalori_ajani(
+            gunluk_hedef_kalori=istek.gunluk_hedef_kalori,
+            alinan_kalori=istek.alinan_kalori,
+            alinan_protein=istek.alinan_protein,
+            hedef_protein=istek.hedef_protein,
+            kullanici_notu=istek.kullanici_notu
+        )
+        return {"success": True, "data": sonuc}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

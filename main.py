@@ -6,6 +6,7 @@ from ai_model import yapay_zeka_cevap, yemek_analiz_et
 from datetime import datetime
 import sqlite3
 import json
+from ai_model import yemek_analiz_et, yapay_zeka_cevap, aktivite_ve_kalori_ajani
 
 app = FastAPI(title="PelinI - Health Assistant")
 
@@ -164,3 +165,25 @@ def gunluk_ozet(tarih: str | None = None):
         "ogunler": ogunler,
         "toplamlar": toplamlar
     }
+from pydantic import BaseModel
+
+class AktiviteIstegi(BaseModel):
+    gunluk_hedef_kalori: int = 1800
+    alinan_kalori: int
+    alinan_protein: float
+    hedef_protein: float = 100.0
+    kullanici_notu: str = ""
+
+@app.post("/api/aktivite-onerisi")
+def aktivite_tavsiyesi_al(istek: AktiviteIstegi):
+    try:
+        sonuc = aktivite_ve_kalori_ajani(
+            gunluk_hedef_kalori=istek.gunluk_hedef_kalori,
+            alinan_kalori=istek.alinan_kalori,
+            alinan_protein=istek.alinan_protein,
+            hedef_protein=istek.hedef_protein,
+            kullanici_notu=istek.kullanici_notu
+        )
+        return {"success": True, "data": sonuc}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
